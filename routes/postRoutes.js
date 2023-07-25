@@ -1,0 +1,248 @@
+const router = require("express").Router();
+const Post = require("../models/Post");
+const User = require("../models/User");
+const fs = require('fs');
+const path = require('path');
+router.post('/listPost', async (req, res) => {
+
+    try {
+        const list = [];
+        const posts = await Post.find().sort({ createdAt: 'desc' });
+        const currentUser = await User.findById(req.body.userId);
+        console.log(req.body.userId);
+
+        for (const postData of posts) {
+            const {
+                userId,
+                post: postContent,
+                postImg,
+                likes,
+                comments,
+                createdAt,
+            } = postData;
+
+            const user = await User.findById(userId);
+
+            if (!user) {
+                continue;
+            }
+
+            const userName = `${user.fname} ${user.lname}`;
+            const liked = postData.likes.includes(currentUser._id); // Check if currentUser._id is in the likes array
+
+            list.push({
+                id: postData._id,
+                userId,
+                userName,
+                userImg: `${user.userImg}`,
+                postTime: `${postData.createdAt}`,
+                post: postContent,
+                postImg,
+                liked: liked,
+                likes,
+                comments,
+            });
+        }
+
+        res.status(200).json(list);
+    } catch (error) {
+        console.error('Error fetching posts:', error);
+        res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+
+});
+
+router.post('/posts', async (req, res) => {
+    console.log("post");
+    try {
+        const { userId, post, postImg } = req.body;
+        let newPost;
+        if (postImg == "") {
+            newPost = new Post({
+                userId,
+                post,
+                postImg: [],
+                postTime: new Date(),
+                likes: [],
+                comments: []
+            });
+        } else {
+            newPost = new Post({
+                userId,
+                post,
+                postImg,
+                postTime: new Date(),
+                likes: [],
+                comments: []
+            });
+        }
+       
+        const savedPost = await newPost.save();
+
+        res.json({ message: 'Post Added!', postId: savedPost._id });
+    } catch (error) {
+        console.error('Something went wrong with adding post to MongoDB.', error);
+        res.status(500).json({ error: 'Something went wrong.' });
+    }
+});
+//update a post
+
+router.put("posts/:id", async (req, res) => {
+    try {
+        const post = await Post.findById(req.params.id);
+        if (post.userId === req.body.userId) {
+            await post.updateOne({ $set: req.body });
+            res.status(200).json("the post has been updated");
+        } else {
+            res.status(403).json("you can update only your post");
+        }
+    } catch (err) {
+        res.status(500).json(err);
+    }
+});
+//delete a post
+
+router.delete("/posts/:id", async (req, res) => {
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId);
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        if (post.postImg && post.postImg.length > 0) {
+            post.postImg.forEach((imageUrl) => {
+                const imagePath = path.join(__dirname, '../public/uploads', imageUrl);
+
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                    console.log(`Image ${imageUrl} has been deleted successfully.`);
+                }
+            });
+        }
+
+
+        await post.deleteOne();
+
+        res.status(200).json({ message: 'The post and image have been deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting post:', error);
+        res.status(500).json({ error: 'Failed to delete post' + error });
+    }
+});
+//like / dislike a post
+router.put('/posts/:id/like', async (req, res) => {
+    console.log("hdhgd");
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        const userId = req.body.userId;
+        const userIndex = post.likes.indexOf(userId);
+        var a = '';
+        if (userIndex === -1) {
+            post.likes.push(userId);
+            a = true;
+        } else {
+            post.likes.splice(userIndex, 1);
+            a = false;
+        }
+        const updatedPost = await post.save();
+        res.status(200).json({liked:a});
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update post likes' + error });
+    }
+});
+
+//get a post
+router.post("/postDetail/:id", async (req, res) => {
+    try {
+        const postId = req.params.id;
+        console.log("sjdhsgdsad : " + req.params.id);
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        const user = await User.findById(post.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const liked = post.likes.includes(req.body.userId);
+        const userName = `${user.fname} ${user.lname}`;
+        const postWithUserInfo = {
+            id: post._id,
+            userId: post.userId,
+            userName: userName,
+            userImg: user.userImg,
+            postTime: post.createdAt,
+            post: post.post,
+            postImg: post.postImg,
+            liked: liked,
+            likes: post.likes,
+            comments: post.comments,
+        };
+        console.log(postWithUserInfo);
+        res.status(200).json(postWithUserInfo);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch post or user information' });
+    }
+});
+
+router.post("/posts/cmt/:id", async (req, res) => {
+    try {
+        const { userId, content } = req.body;
+        const postId = req.params.id;
+        console.log("sjdhsgdsad : " + req.params.id);
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        const user = await User.findById(post.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const userName = `${user.fname} ${user.lname}`;
+        const newComment = {
+            userId: userId,
+            userAvatar: user.userImg,
+            userName: userName,
+            content: content,
+            cmtDate: new Date(),
+        };
+
+        post.comments.push(newComment);
+
+        await post.save();
+        res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+    } catch (err) {
+        console.error('Error adding comment:', error);
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+router.delete('/posts/:postId/comments/:commentId', async (req, res) => {
+    try {
+        const postId = req.params.postId;
+        const commentId = req.params.commentId;
+        const post = await Post.findById(postId);
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        const commentIndex = post.comments.findIndex((comment) => comment._id.toString() === commentId);
+
+        if (commentIndex === -1) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+        post.comments.splice(commentIndex, 1);
+        await post.save();
+
+        res.status(200).json({ message: 'Comment deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        res.status(500).json({ error: 'Failed to delete comment' });
+    }
+});
+
+module.exports = router;

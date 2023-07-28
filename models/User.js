@@ -12,18 +12,12 @@ const userSchema = new mongoose.Schema({
         unique: true,
     }, about: { type: String },
     phone: { type: String },
-    country: { type: String },
-    city: { type: String },
     password: {
         type: String,
         required: true,
         min: 6,
     },
     userImg: {
-        type: String,
-        default: "",
-    },
-    coverPicture: {
         type: String,
         default: "",
     },

@@ -37,7 +37,6 @@ app.get('/', (req, res) => {
 })
 
 app.use('/public/uploads', express.static('public/uploads'));
-//...........18
 
 io.on("connection", (socket) => {
 

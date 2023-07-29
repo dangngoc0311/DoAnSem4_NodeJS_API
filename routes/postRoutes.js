@@ -79,7 +79,7 @@ router.post('/posts', async (req, res) => {
        
         const savedPost = await newPost.save();
 
-        res.json({ message: 'Post Added!', postId: savedPost._id });
+        res.json({ message: 'Post Added!', postId: savedPost._id, post: newPost });
     } catch (error) {
         console.error('Something went wrong with adding post to MongoDB.', error);
         res.status(500).json({ error: 'Something went wrong.' });
@@ -132,7 +132,6 @@ router.delete("/posts/:id", async (req, res) => {
 });
 //like / dislike a post
 router.put('/posts/:id/like', async (req, res) => {
-    console.log("hdhgd");
     try {
         const postId = req.params.id;
         const post = await Post.findById(postId);
@@ -150,6 +149,7 @@ router.put('/posts/:id/like', async (req, res) => {
             a = false;
         }
         const updatedPost = await post.save();
+        console.log(a);
         res.status(200).json({liked:a});
     } catch (error) {
         res.status(500).json({ error: 'Failed to update post likes' + error });
@@ -171,6 +171,7 @@ router.post("/postDetail/:id", async (req, res) => {
         }
         const liked = post.likes.includes(req.body.userId);
         const userName = `${user.fname} ${user.lname}`;
+        post.comments.sort((a, b) => new Date(b.cmtDate) - new Date(a.cmtDate));
         const postWithUserInfo = {
             id: post._id,
             userId: post.userId,
@@ -199,7 +200,8 @@ router.post("/posts/cmt/:id", async (req, res) => {
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
-        const user = await User.findById(post.userId);
+        console.log(post);
+        const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -211,34 +213,31 @@ router.post("/posts/cmt/:id", async (req, res) => {
             content: content,
             cmtDate: new Date(),
         };
-
-        post.comments.push(newComment);
+        const savedComment = await post.comments.create(newComment);
+        post.comments.push(savedComment);
 
         await post.save();
-        res.status(201).json({ message: 'Comment added successfully', comment: newComment });
+        
+        res.status(201).json({ message: 'Comment added successfully', comment: savedComment });
     } catch (err) {
-        console.error('Error adding comment:', error);
+        console.error('Error adding comment:', err);
         res.status(500).json({ error: 'Failed to add comment' });
     }
 });
-router.delete('/posts/:postId/comments/:commentId', async (req, res) => {
+router.delete('/posts/cmt/:postId/:commentId', async (req, res) => {
     try {
-        const postId = req.params.postId;
-        const commentId = req.params.commentId;
+        const { postId, commentId } = req.params;
         const post = await Post.findById(postId);
-
         if (!post) {
             return res.status(404).json({ error: 'Post not found' });
         }
         const commentIndex = post.comments.findIndex((comment) => comment._id.toString() === commentId);
-
         if (commentIndex === -1) {
             return res.status(404).json({ error: 'Comment not found' });
         }
         post.comments.splice(commentIndex, 1);
         await post.save();
-
-        res.status(200).json({ message: 'Comment deleted successfully' });
+        res.json({ message: 'Comment deleted successfully' });
     } catch (error) {
         console.error('Error deleting comment:', error);
         res.status(500).json({ error: 'Failed to delete comment' });

@@ -1,6 +1,26 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
-
+const commentSchema = new mongoose.Schema(
+    {
+        id: { type: mongoose.Types.ObjectId },
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        userName: {
+            type: String
+        },
+        userAvatar: {
+            type: String
+        },
+        content: {
+            type: String,
+            required: true,
+        },
+        cmtDate: { type: Date }
+    }
+);
 
 const PostSchema = new mongoose.Schema({
     id: { type: mongoose.Types.ObjectId },
@@ -21,7 +41,7 @@ const PostSchema = new mongoose.Schema({
         type: Array,
         default: [],
     },
-    comments: { type: Array, default: [], }
+    comments: [commentSchema]  ,
 }, {
     timestamps: true
 })

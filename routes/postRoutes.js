@@ -79,7 +79,7 @@ router.post('/posts', async (req, res) => {
        
         const savedPost = await newPost.save();
 
-        res.json({ message: 'Post Added!', postId: savedPost._id });
+        res.json({ message: 'Post Added!', postId: savedPost._id, post: newPost });
     } catch (error) {
         console.error('Something went wrong with adding post to MongoDB.', error);
         res.status(500).json({ error: 'Something went wrong.' });

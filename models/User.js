@@ -33,10 +33,6 @@ const userSchema = new mongoose.Schema({
         type: Array,
         default: []
     },
-    allmessages: {
-        type: Array,
-        default: []
-    },
     status: {
         type: Boolean,
         default: true,

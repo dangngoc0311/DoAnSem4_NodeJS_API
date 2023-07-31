@@ -7,73 +7,264 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcrypt");
-
-
-router.post('/savemessagetodb', async (req, res) => {
-    const { senderid, message, roomid, recieverid } = req.body;
-    console.log("MESSAGE RECEIVED - ", req.body);
+// Thêm tin nhắn
+// Gửi tin nhắn từ người gửi đến người nhận
+// API để kiểm tra xem hai người dùng đã nhắn tin cho nhau chưa và gửi tin nhắn trong group chat
+router.post('/send_message', async (req, res) => {
     try {
-        const newMessage = new Message({
-            senderid,
-            message,
-            roomid,
-            recieverid
-        })
-        await newMessage.save();
-        res.send({ message: "Message saved successfully" });
-    } catch (err) {
-        res.status(422).send(err.message);
+        const { userId1, userId2, content } = req.body;
+
+        // Kiểm tra xem có group chat nào giữa hai người dùng hay không
+        const groupChat = await GroupChat.findOne({
+            $or: [
+                { sender: userId1, receiver: userId2 },
+                { sender: userId2, receiver: userId1 },
+            ],
+        });
+
+        // Nếu chưa tồn tại group chat, tạo group chat mới
+        if (!groupChat) {
+            const newGroupChat = new GroupChat({
+                sender: userId1,
+                receiver: userId2,
+            });
+            const savedGroupChat = await newGroupChat.save();
+
+            // Gửi tin nhắn trong group chat mới tạo
+            const newMessage = new Message({
+                groupChat: savedGroupChat._id,
+                senderId: userId1,
+                receiverId: userId2,
+                content,
+            });
+            const savedMessage = await newMessage.save();
+            savedGroupChat.messages.push(savedMessage._id);
+            await savedGroupChat.save();
+
+            return res.status(200).json(savedMessage);
+        } else {
+            // Nếu đã tồn tại group chat, gửi tin nhắn trong group chat đó
+            const newMessage = new Message({
+                groupChat: groupChat._id,
+                senderId: userId1,
+                receiverId: userId2,
+                content,
+            });
+            const savedMessage = await newMessage.save();
+            groupChat.messages.push(savedMessage._id);
+            await groupChat.save();
+
+            return res.status(200).json(savedMessage);
+        }
+    } catch (error) {
+        res.status(500).json(error);
     }
 });
 
+// API để lấy ra danh sách tin nhắn trong group chat của 2 người dùng
+router.get('/group_chat_messages', async (req, res) => {
+    try {
+        const { userId1, userId2 } = req.query;
 
-router.post('/getmessages', async (req, res) => {
-    const { roomid } = req.body;
-    console.log("ROOM ID RECEIVED - ", roomid);
-
-    Message.find({ roomid: roomid })
-        .then(messages => {
-            res.status(200).send(messages);
-        })
-        .catch(err => {
-            console.log(err);
+        // Kiểm tra xem có group chat nào giữa hai người dùng hay không
+        const groupChat = await GroupChat.findOne({
+            $or: [
+                { sender: userId1, receiver: userId2 },
+                { sender: userId2, receiver: userId1 },
+            ],
         });
+
+        if (!groupChat) {
+            return res.status(404).json({ message: 'Không tìm thấy group chat' });
+        }
+
+        // Lấy danh sách tin nhắn trong group chat
+        const messages = await Message.find({ groupChat: groupChat._id })
+            .populate('senderId', 'username') // Populate thông tin người gửi (có thể thêm các trường thông tin khác)
+            .populate('receiverId', 'username') // Populate thông tin người nhận (có thể thêm các trường thông tin khác)
+            .sort({ createdAt: 1 }); // Sắp xếp tin nhắn theo thời gian tạo
+
+        return res.status(200).json(messages);
+    } catch (error) {
+        res.status(500).json(error);
+    }
 });
 
+// Thêm reaction vào tin nhắn
+router.put('/messages/add_reaction/:id', async (req, res) => {
+    try {
+        const messageId = req.params.id;
+        const { user, type_emotion } = req.body;
 
-router.post('/setusermessages', async (req, res) => {
-    const { ouruserid, fuserid, lastmessage, roomid } = req.body;
-    console.log("MESSAGE ID RECEIVED - ", fuserid);
-    User.findOne({ _id: ouruserid })
-        .then(user => {
-            user.allmessages.map((item) => {
-                if (item.fuserid == fuserid) {
-                    user.allmessages.pull(item);
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+        }
+
+        // Kiểm tra xem người dùng đã thêm reaction cho tin nhắn này chưa
+        const existingReaction = message.reactionMess.find((reaction) => reaction.user.toString() === user);
+        if (existingReaction) {
+            // Nếu đã tồn tại reaction từ người dùng, chỉ cập nhật lại type_emotion
+            existingReaction.type_emotion = type_emotion;
+        } else {
+            // Nếu chưa có reaction từ người dùng, thêm mới reaction vào mảng reactionMess
+            message.reactionMess.push({ user, type_emotion });
+        }
+
+        await message.save();
+        return res.status(200).json(message);
+    } catch (error) {
+        return res.status(500).json(error);
+    }
+});
+
+// Xoá tin nhắn
+router.delete('/messages/:id', async (req, res) => {
+    try {
+        const messageId = req.params.id;
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+        }
+        // Xoá tin nhắn từ database
+        await message.remove();
+        return res.status(200).json({ message: 'Xoá tin nhắn thành công' });
+    } catch (error) {
+        return res.status(500).json(error);
+    }
+});
+
+//ok
+// API để lấy danh sách các group chat của người đăng nhập
+router.get('/user_group_chats/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params.userId;
+
+        // Lấy danh sách các group chat mà người đăng nhập đang tham gia
+        const groupChats = await GroupChat.find({
+            $or: [{ senderId: userId }, { receiverId: userId }],
+        }).sort({ updatedAt: -1 });
+
+        // Nếu không có group chat nào, trả về danh sách rỗng
+        if (!groupChats || groupChats.length === 0) {
+            return res.status(200).json([]);
+        }
+
+        // Duyệt qua từng group chat để lấy thông tin và tin nhắn cuối cùng
+        const groupChatData = await Promise.all(
+            groupChats.map(async (groupChat) => {
+                let otherUserId;
+                if (groupChat.senderId.equals(userId)) {
+                    otherUserId = groupChat.receiverId;
+                } else {
+                    otherUserId = groupChat.senderId;
                 }
+
+                // Lấy thông tin người còn lại trong group
+                const otherUser = await User.findById(otherUserId);
+                const { _id, username, userImage } = otherUser;
+
+                // Lấy tin nhắn cuối cùng trong group chat
+                const lastMessage = await Message.findOne({ groupChat: groupChat._id })
+                    .sort({ createdAt: -1 })
+                    .populate('senderId', 'username')
+                    .populate('receiverId', 'username')
+                    .select('createdAt content');
+
+                // Trả về thông tin của group chat và tin nhắn cuối cùng
+                return {
+                    groupId: groupChat._id,
+                    userName: username,
+                    userImage: userImage,
+                    messageTime: lastMessage.createdAt,
+                    messageText: lastMessage.content,
+                };
             })
-            const date = Date.now();
-            user.allmessages.push({ ouruserid, fuserid, lastmessage, roomid, date });
-            user.save()
-            res.status(200).send({ message: "Message saved successfully" });
-        })
-        .catch(err => {
-            console.log(err);
-            res.status(422).send(err.message);
-        });
+        );
+
+        return res.status(200).json(groupChatData);
+    } catch (error) {
+        res.status(500).json(error);
+    }
+});
+// API để lấy danh sách các tin nhắn của hai người
+router.get('/messages/:userId1/:userId2', async (req, res) => {
+    try {
+        const { userId1, userId2 } = req.params;
+
+        // Truy vấn cơ sở dữ liệu để lấy danh sách các tin nhắn của hai người
+        const messages = await Message.find({
+            $or: [
+                { senderId: userId1, receiverId: userId2 },
+                { senderId: userId2, receiverId: userId1 },
+            ],
+        }).sort({ createdAt: -1 });
+
+        // Nếu không có tin nhắn nào, trả về danh sách rỗng
+        if (!messages || messages.length === 0) {
+            return res.status(200).json([]);
+        }
+
+        // Duyệt qua từng tin nhắn để lấy thông tin người nhắn tin
+        const messageData = await Promise.all(
+            messages.map(async (message) => {
+                let otherUserId;
+                if (message.senderId.equals(userId1)) {
+                    otherUserId = message.receiverId;
+                } else {
+                    otherUserId = message.senderId;
+                }
+
+                // Lấy thông tin người nhắn tin từ cơ sở dữ liệu
+                const otherUser = await User.findById(otherUserId);
+                const { _id, fname, lname, userImg } = otherUser;
+
+                // Tạo username từ fname và lname
+                const username = fname + lname;
+
+                // Trả về các thông tin của tin nhắn và người nhắn tin
+                return {
+                    _id: message._id,
+                    text: message.content,
+                    createdAt: message.createdAt,
+                    user: {
+                        _id: _id,
+                        name: username,
+                        avatar: userImg,
+                    },
+                };
+            })
+        );
+
+        return res.status(200).json(messageData);
+    } catch (error) {
+        res.status(500).json(error);
+    }
 });
 
+// Route để lấy danh sách người trong danh sách theo dõi và danh sách đang theo dõi của một người dùng cụ thể
+router.get('/connections/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
 
-router.post('/getusermessages', async (req, res) => {
-    const { userid } = req.body;
-    console.log("USER ID RECEIVED - ", userid);
-    User.findOne({ _id: userid })
-        .then(user => {
-            res.status(200).send(user.allmessages);
-        })
-        .catch(err => {
-            console.log(err);
-            res.status(422).send(err.message);
-        });
+        // Tìm người dùng dựa vào userId
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Lấy danh sách followers và followings của người dùng
+        const followers = await User.find({ _id: { $in: user.followers } }, '_id fname lname userImg');
+        const followings = await User.find({ _id: { $in: user.followings } }, '_id fname lname userImg');
+
+        // Kết hợp hai danh sách thành một danh sách duy nhất
+        const connections = followers.concat(followings);
+console.log(connections);
+        return res.status(200).json(connections);
+    } catch (error) {
+        return res.status(500).json({ message: 'Server Error' });
+    }
 });
 
 

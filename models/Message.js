@@ -1,28 +1,63 @@
-const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
+const mongoose = require('mongoose');
 
-
-const messageSchema = new mongoose.Schema({
-    senderid: {
-        type: String,
-        required: true
+const messageSchema = new mongoose.Schema(
+    {
+        _id: {
+            type: mongoose.Schema.Types.ObjectId,
+        },
+        groupChat: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'GroupChat',
+            required: true,
+        },
+        senderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        receiverId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        content: {
+            type: String,
+            required: true,
+        },
+        replyMessage: {
+            id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Message',
+            },
+            content: String,
+            file: String,
+        },
+        seen: [
+            {
+                userId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User',
+                },
+                seenAt: String,
+            },
+        ],
+        reactionMess: [
+            {
+                userId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'User',
+                },
+                type_emotion: String,
+            },
+        ],
+        status: {
+            type: Number,
+            default: 1,
+        },
+        file: String,
     },
-    message: {
-        type: String,
-    },
-    roomid: {
-        type: String,
-        required: true
-    },
-    recieverid: {
-        type: String,
-        required: true
-    }
-}, {
-    timestamps: true
-})
+    { timestamps: true },
+);
+const Message = mongoose.model('Message', messageSchema);
 
-
-
-
-mongoose.model("Message", messageSchema);
+module.exports = { Message };

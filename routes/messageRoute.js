@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const Message = mongoose.model("Message");
-const User = mongoose.model("User");
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const nodemailer = require("nodemailer");
 const bcrypt = require("bcrypt");
+const { GroupChat } = require('../models/GroupChat');
+const { Message } = require('../models/Message');
+const User = require('../models/User');
 // Thêm tin nhắn
 // Gửi tin nhắn từ người gửi đến người nhận
 // API để kiểm tra xem hai người dùng đã nhắn tin cho nhau chưa và gửi tin nhắn trong group chat
@@ -21,7 +22,7 @@ router.post('/send_message', async (req, res) => {
                 { sender: userId2, receiver: userId1 },
             ],
         });
-
+        console.log("Group chat : " + groupChat);
         // Nếu chưa tồn tại group chat, tạo group chat mới
         if (!groupChat) {
             const newGroupChat = new GroupChat({
@@ -29,30 +30,31 @@ router.post('/send_message', async (req, res) => {
                 receiver: userId2,
             });
             const savedGroupChat = await newGroupChat.save();
-
+            console.log("group chat : " + newGroupChat);
             // Gửi tin nhắn trong group chat mới tạo
             const newMessage = new Message({
                 groupChat: savedGroupChat._id,
                 senderId: userId1,
                 receiverId: userId2,
-                content,
+                content: content,
             });
-            const savedMessage = await newMessage.save();
-            savedGroupChat.messages.push(savedMessage._id);
-            await savedGroupChat.save();
+            try {
+                const savedMessage = await newMessage.save();
+                return res.status(200).json(savedMessage);
 
-            return res.status(200).json(savedMessage);
+            } catch (error) {
+                console.log(error)
+            }
+
         } else {
             // Nếu đã tồn tại group chat, gửi tin nhắn trong group chat đó
             const newMessage = new Message({
                 groupChat: groupChat._id,
                 senderId: userId1,
                 receiverId: userId2,
-                content,
+                content: content,
             });
             const savedMessage = await newMessage.save();
-            groupChat.messages.push(savedMessage._id);
-            await groupChat.save();
 
             return res.status(200).json(savedMessage);
         }
@@ -138,55 +140,64 @@ router.delete('/messages/:id', async (req, res) => {
 // API để lấy danh sách các group chat của người đăng nhập
 router.get('/user_group_chats/:userId', async (req, res) => {
     try {
-        const { userId } = req.params.userId;
-
+        const userId = req.params.userId;
         // Lấy danh sách các group chat mà người đăng nhập đang tham gia
         const groupChats = await GroupChat.find({
-            $or: [{ senderId: userId }, { receiverId: userId }],
-        }).sort({ updatedAt: -1 });
-
-        // Nếu không có group chat nào, trả về danh sách rỗng
+            $or: [{ sender: userId }, { receiver: userId }],
+        });
+        
         if (!groupChats || groupChats.length === 0) {
             return res.status(200).json([]);
         }
 
-        // Duyệt qua từng group chat để lấy thông tin và tin nhắn cuối cùng
-        const groupChatData = await Promise.all(
-            groupChats.map(async (groupChat) => {
-                let otherUserId;
-                if (groupChat.senderId.equals(userId)) {
-                    otherUserId = groupChat.receiverId;
-                } else {
-                    otherUserId = groupChat.senderId;
-                }
+        const groupChatData = [];
 
-                // Lấy thông tin người còn lại trong group
-                const otherUser = await User.findById(otherUserId);
-                const { _id, username, userImage } = otherUser;
+        for (const groupChat of groupChats) {
+            let otherUserId;
+            if (groupChat.sender.equals(userId)) {
+                otherUserId = groupChat.receiver;
+            } else {
+                otherUserId = groupChat.sender;
+            }
 
-                // Lấy tin nhắn cuối cùng trong group chat
-                const lastMessage = await Message.findOne({ groupChat: groupChat._id })
-                    .sort({ createdAt: -1 })
-                    .populate('senderId', 'username')
-                    .populate('receiverId', 'username')
-                    .select('createdAt content');
+            // Lấy thông tin người còn lại trong group
+            const otherUser = await User.findById(otherUserId);
+            const { _id, fname, lname, userImg } = otherUser;
 
-                // Trả về thông tin của group chat và tin nhắn cuối cùng
-                return {
-                    groupId: groupChat._id,
-                    userName: username,
-                    userImage: userImage,
-                    messageTime: lastMessage.createdAt,
-                    messageText: lastMessage.content,
-                };
-            })
-        );
+            // Lấy tin nhắn cuối cùng trong group chat
+            const lastMessage = await Message.findOne({ groupChat: groupChat._id })
+                .sort({ createdAt: 'desc' })
+                .select('createdAt content senderId receiverId'); 
 
+            // Lấy thông tin người gửi tin nhắn
+            const sender = await User.findById(lastMessage.senderId);
+            const senderInfo = { _id: sender._id, fname: sender.fname, lname: sender.lname, userImage: sender.userImg };
+
+            // Lấy thông tin người nhận tin nhắn
+            const receiver = await User.findById(lastMessage.receiverId);
+            const receiverInfo = { _id: receiver._id, fname: receiver.fname, lname: receiver.lname, userImage: receiver.userImg };
+
+            groupChatData.push({
+                _id: groupChat._id,
+                userId: _id,
+                fname:fname,
+                lname:lname,
+                userImage: userImg,
+                messageTime: lastMessage.createdAt,
+                messageText: lastMessage.content,
+                sender: senderInfo,
+                receiver: receiverInfo,
+                lastMessage: lastMessage,
+            });
+        }
+ console.log(groupChatData);
         return res.status(200).json(groupChatData);
     } catch (error) {
+        console.error('Error fetching user group chats:', error);
         res.status(500).json(error);
     }
 });
+
 // API để lấy danh sách các tin nhắn của hai người
 router.get('/messages/:userId1/:userId2', async (req, res) => {
     try {
@@ -198,7 +209,7 @@ router.get('/messages/:userId1/:userId2', async (req, res) => {
                 { senderId: userId1, receiverId: userId2 },
                 { senderId: userId2, receiverId: userId1 },
             ],
-        }).sort({ createdAt: -1 });
+        }).sort({ createdAt: 'asc' });
 
         // Nếu không có tin nhắn nào, trả về danh sách rỗng
         if (!messages || messages.length === 0) {
@@ -228,9 +239,10 @@ router.get('/messages/:userId1/:userId2', async (req, res) => {
                     text: message.content,
                     createdAt: message.createdAt,
                     user: {
-                        _id: _id,
+                        _id: message.receiverId,
                         name: username,
                         avatar: userImg,
+                        senderId: message.senderId
                     },
                 };
             })
@@ -245,23 +257,27 @@ router.get('/messages/:userId1/:userId2', async (req, res) => {
 // Route để lấy danh sách người trong danh sách theo dõi và danh sách đang theo dõi của một người dùng cụ thể
 router.get('/connections/:userId', async (req, res) => {
     try {
-        const { userId } = req.params;
+        // const { userId } = req.params;
 
-        // Tìm người dùng dựa vào userId
-        const user = await User.findById(userId);
+        // // Tìm người dùng dựa vào userId
+        // const user = await User.findById(userId);
 
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+        // if (!user) {
+        //     return res.status(404).json({ message: 'User not found' });
+        // }
 
-        // Lấy danh sách followers và followings của người dùng
-        const followers = await User.find({ _id: { $in: user.followers } }, '_id fname lname userImg');
-        const followings = await User.find({ _id: { $in: user.followings } }, '_id fname lname userImg');
+        // // Lấy danh sách followers và followings của người dùng
+        // const followers = await User.find({ _id: { $in: user.followers } }, '_id fname lname userImg');
+        // const followings = await User.find({ _id: { $in: user.followings } }, '_id fname lname userImg');
 
-        // Kết hợp hai danh sách thành một danh sách duy nhất
-        const connections = followers.concat(followings);
-console.log(connections);
-        return res.status(200).json(connections);
+        // // Kết hợp hai danh sách thành một danh sách duy nhất
+        // const connections = followers.concat(followings);
+        // console.log(connections);
+        // return res.status(200).json(connections);
+
+
+        const users = await User.find({}, '_id fname lname userImg');
+        return res.status(200).json(users);
     } catch (error) {
         return res.status(500).json({ message: 'Server Error' });
     }

@@ -2,9 +2,7 @@ const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema(
     {
-        _id: {
-            type: mongoose.Schema.Types.ObjectId,
-        },
+        id: { type: mongoose.Types.ObjectId },
         groupChat: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'GroupChat',
@@ -24,37 +22,37 @@ const messageSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        replyMessage: {
-            id: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Message',
-            },
-            content: String,
-            file: String,
-        },
-        seen: [
-            {
-                userId: {
-                    type: mongoose.Schema.Types.ObjectId,
-                    ref: 'User',
-                },
-                seenAt: String,
-            },
-        ],
-        reactionMess: [
-            {
-                userId: {
-                    type: mongoose.Schema.Types.ObjectId,
-                    ref: 'User',
-                },
-                type_emotion: String,
-            },
-        ],
+        // replyMessage: {
+        //     id: {
+        //         type: mongoose.Schema.Types.ObjectId,
+        //         ref: 'Message',
+        //     },
+        //     content: String,
+        //     file: String,
+        // },
+        // seen: [
+        //     {
+        //         userId: {
+        //             type: mongoose.Schema.Types.ObjectId,
+        //             ref: 'User',
+        //         },
+        //         seenAt: String,
+        //     },
+        // ],
+        // reactionMess: [
+        //     {
+        //         userId: {
+        //             type: mongoose.Schema.Types.ObjectId,
+        //             ref: 'User',
+        //         },
+        //         type_emotion: String,
+        //     },
+        // ],
         status: {
             type: Number,
             default: 1,
         },
-        file: String,
+        // file: String,
     },
     { timestamps: true },
 );

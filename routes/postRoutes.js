@@ -87,17 +87,29 @@ router.post('/posts', async (req, res) => {
 });
 //update a post
 
-router.put("posts/:id", async (req, res) => {
+router.put('/posts/:id', async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
-        if (post.userId === req.body.userId) {
-            await post.updateOne({ $set: req.body });
-            res.status(200).json("the post has been updated");
-        } else {
-            res.status(403).json("you can update only your post");
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
         }
-    } catch (err) {
-        res.status(500).json(err);
+
+        if (post.userId !== req.body.userId) {
+            return res.status(403).json({ error: 'You can update only your post' });
+        }
+
+        const updatedFields = {
+            post: req.body.post,
+            postImg: req.body.postImg,
+            updatedAt: new Date(),
+        };
+
+        await Post.findByIdAndUpdate(req.params.id, { $set: updatedFields });
+
+        res.status(200).json({ message: 'The post has been updated' });
+    } catch (error) {
+        console.error('Something went wrong with updating the post in MongoDB.', error);
+        res.status(500).json({ error: 'Something went wrong.' });
     }
 });
 //delete a post

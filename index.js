@@ -6,6 +6,8 @@ require('./connect');
 require('./models/User');
 require('./models/Message');
 require('./models/Post');
+require('./models/GroupChat');
+
 const authRoutes = require('./routes/authRoutes');
 const uploadMediaRoutes = require('./routes/uploadMediaRoute');
 const messageRoutes = require('./routes/messageRoute');

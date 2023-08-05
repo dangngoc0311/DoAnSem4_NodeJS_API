@@ -85,25 +85,43 @@ router.post('/posts', async (req, res) => {
         res.status(500).json({ error: 'Something went wrong.' });
     }
 });
-//update a post
-
+// Router - update a post
 router.put('/posts/:id', async (req, res) => {
+    console.log("put ");
     try {
-        const post = await Post.findById(req.params.id);
-        if (!post) {
+        const { userId, post, postImg, deletePostImg } = req.body;
+        const postId = await Post.findById(req.params.id);
+        if (!postId) {
             return res.status(404).json({ error: 'Post not found' });
         }
-
-        if (post.userId !== req.body.userId) {
+console.log("ok1 ");
+        if (postId.userId !== userId) {
             return res.status(403).json({ error: 'You can update only your post' });
+        }
+        console.log("ok 2 ");
+        console.log("del : " + deletePostImg);
+        // Kiểm tra nếu có ảnh muốn xoá từ phía client
+        if (deletePostImg) {
+            // Xoá ảnh khỏi mảng postImg theo tên ảnh
+            // const updatedPostImg = postId.postImg.filter((img) => img !== postImg);
+            // postId.postImg = updatedPostImg;
+            postId.postImg = [];
+        }
+        console.log("Post : " + postImg);
+        // Kiểm tra nếu có ảnh mới muốn thêm vào phía client
+        if (postImg) {
+            // Thêm ảnh mới vào mảng postImg
+            postId.postImg.push(postImg);
         }
 
         const updatedFields = {
-            post: req.body.post,
-            postImg: req.body.postImg,
+            post,
+            postImg: postId.postImg, 
             updatedAt: new Date(),
         };
+        console.log("update : " + updatedFields);
 
+        // Sử dụng findByIdAndUpdate để cập nhật bài viết
         await Post.findByIdAndUpdate(req.params.id, { $set: updatedFields });
 
         res.status(200).json({ message: 'The post has been updated' });
@@ -112,6 +130,8 @@ router.put('/posts/:id', async (req, res) => {
         res.status(500).json({ error: 'Something went wrong.' });
     }
 });
+
+
 //delete a post
 
 router.delete("/posts/:id", async (req, res) => {

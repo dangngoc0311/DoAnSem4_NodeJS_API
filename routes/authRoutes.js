@@ -169,27 +169,22 @@ router.post('/users/:id/follow', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        const loggedInUserId = req.query.loggedInUserId; // Use req.query.loggedInUserId here
         if (!user.followers.includes(loggedInUserId)) {
-            // If the user is not already following, follow the user
             user.followers.push(loggedInUserId);
             await user.save();
 
-            // Add the current user to the 'followings' array of the user they followed
             const loggedInUser = await User.findById(loggedInUserId);
             if (loggedInUser) {
                 loggedInUser.followings.push(userId);
                 await loggedInUser.save();
             }
         } else {
-            // If the user is already following, unfollow the user
             const index = user.followers.indexOf(loggedInUserId);
             if (index !== -1) {
                 user.followers.splice(index, 1);
                 await user.save();
             }
 
-            // Remove the current user from the 'followings' array of the user they unfollowed
             const loggedInUser = await User.findById(loggedInUserId);
             if (loggedInUser) {
                 const followingIndex = loggedInUser.followings.indexOf(userId);
@@ -200,7 +195,6 @@ router.post('/users/:id/follow', async (req, res) => {
             }
         }
 
-        // After following/unfollowing, get the updated follower and following counts
         const updatedUser = await User.findById(userId);
         if (!updatedUser) {
             return res.status(404).json({ error: 'User not found' });
@@ -233,4 +227,31 @@ router.post('/upload', uploadFile.single('image'), (req, res) => {
     }
 });
 
+// lấy danh sách những người followers
+router.get('/users/followers/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const followers = await User.find({ _id: { $in: user.followers } }, '_id fname lname userImg');
+        return res.status(200).json(followers);
+    } catch (error) {
+        return res.status(500).json({ message: 'Server Error' });
+    }
+});
+router.get('/users/followerings/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const followers = await User.find({ _id: { $in: user.followings } }, '_id fname lname userImg');
+        return res.status(200).json(followers);
+    } catch (error) {
+        return res.status(500).json({ message: 'Server Error' });
+    }
+});
 module.exports = router;

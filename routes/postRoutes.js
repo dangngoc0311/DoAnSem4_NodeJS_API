@@ -276,4 +276,52 @@ router.delete('/posts/cmt/:postId/:commentId', async (req, res) => {
     }
 });
 
+// api lấy danh sách bài đăng của người dùng 
+router.post('/userPosts', async (req, res) => {
+    try {
+        const loggedInUserId = req.body.loggedInUserId;
+        const list = [];
+        const posts = await Post.find({ userId: req.body.userId }).sort({ createdAt: 'desc' });
+
+        for (const postData of posts) {
+            const {
+                userId,
+                post: postContent,
+                postImg,
+                likes,
+                comments,
+                createdAt,
+            } = postData;
+
+            const user = await User.findById(userId);
+
+            if (!user) {
+                continue;
+            }
+
+            const userName = `${user.fname} ${user.lname}`;
+            const liked = likes.includes(loggedInUserId); // Check if the loggedInUserId is in the likes array
+
+            list.push({
+                id: postData._id,
+                userId,
+                userName,
+                userImg: `${user.userImg}`,
+                postTime: `${postData.createdAt}`,
+                post: postContent,
+                postImg,
+                liked: liked,
+                likes,
+                comments,
+            });
+        }
+
+        res.status(200).json(list);
+    } catch (error) {
+        console.error('Error fetching user posts:', error);
+        res.status(500).json({ error: 'Failed to fetch user posts' });
+    }
+});
+
+
 module.exports = router;

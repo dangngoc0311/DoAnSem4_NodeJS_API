@@ -8,6 +8,15 @@ const storage = multer.diskStorage({
         callback(null, file.originalname);
     }
 });
-const uploadFile = multer({ storage: storage });
+
+const fileFilter = (req, file, callback) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+        callback(null, true);
+    } else {
+        callback(new Error('Invalid file type. Only image and video files are allowed.'));
+    }
+};
+
+const uploadFile = multer({ storage: storage, fileFilter: fileFilter });
 
 module.exports = uploadFile;

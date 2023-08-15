@@ -44,7 +44,6 @@ router.post("/login", async (req, res) => {
         if (!validPassword) {
             return res.status(400).json({ error: "Wrong password" });
         }
-        console.log(user);
         res.status(200).json(user);
     } catch (err) {
         res.status(500).json(err);
@@ -86,6 +85,7 @@ router.get('/users/:userId', async (req, res) => {
         const userDataWithFollowStatus = {
             ...user.toObject(),
             followed: isFollowedByLoggedInUser,
+            Id: user._id,
         };
 
         res.status(200).json(userDataWithFollowStatus);
@@ -165,10 +165,14 @@ router.put('/users/:id', async (req, res) => {
 router.post('/users/:id/follow', async (req, res) => {
     try {
         const userId = req.params.id;
+
         const user = await User.findById(userId);
         if (!user) {
+
             return res.status(404).json({ error: 'User not found' });
         }
+        const loggedInUserId = req.query.loggedInUserId; 
+
         if (!user.followers.includes(loggedInUserId)) {
             user.followers.push(loggedInUserId);
             await user.save();
@@ -210,7 +214,7 @@ router.post('/users/:id/follow', async (req, res) => {
     }
 });
 
-router.post('/upload', uploadFile.single('image'), (req, res) => {
+router.post('/upload', uploadFile.single('media'), (req, res) => {
     try {
         const file = req.file;
         console.log(file);

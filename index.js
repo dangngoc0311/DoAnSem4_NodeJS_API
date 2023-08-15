@@ -7,11 +7,13 @@ require('./models/User');
 require('./models/Message');
 require('./models/Post');
 require('./models/GroupChat');
+require('./models/PostStory');
 
 const authRoutes = require('./routes/authRoutes');
 const uploadMediaRoutes = require('./routes/uploadMediaRoute');
 const messageRoutes = require('./routes/messageRoute');
 const postRoutes = require('./routes/postRoutes');
+const storyRoutes = require('./routes/storyRoute');
 //requireToken skipped
 
 
@@ -33,6 +35,7 @@ app.use(authRoutes);
 app.use(postRoutes);
 app.use(uploadMediaRoutes);
 app.use(messageRoutes);
+app.use(storyRoutes);
 
 app.get('/', (req, res) => {
     res.send("Hello World");

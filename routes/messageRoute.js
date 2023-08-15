@@ -38,6 +38,7 @@ router.post('/send_message', async (req, res) => {
                 receiverId: userId2,
                 content: content,
             });
+            console.log("new :"+newMessage);
             try {
                 const savedMessage = await newMessage.save();
                 return res.status(200).json(savedMessage);

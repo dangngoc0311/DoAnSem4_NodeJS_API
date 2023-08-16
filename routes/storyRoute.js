@@ -93,7 +93,7 @@ router.post('/listStory', async (req, res) => {
     try {
         const userId = req.body.userId;
         const listStory = [];
-        const listUser = await User.find({ status: 1 });
+        const listUser = await User.find({ status: true });
 
         for (const user of listUser) {
             const stories = await Story.find({ userId: user._id, status: 1 })

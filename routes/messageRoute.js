@@ -68,7 +68,12 @@ router.post('/send_message', async (req, res) => {
 router.get('/group_chat_messages', async (req, res) => {
     try {
         const { userId1, userId2 } = req.query;
+        // Kiểm tra xem cả hai người dùng đều có status = true
+        const usersStatus = await User.find({ _id: { $in: [userId1, userId2] }, status: true });
 
+        if (usersStatus.length != 2) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng hoặc có người dùng có status = false' });
+        }
         // Kiểm tra xem có group chat nào giữa hai người dùng hay không
         const groupChat = await GroupChat.findOne({
             $or: [

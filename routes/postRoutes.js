@@ -4,10 +4,9 @@ const User = require("../models/User");
 const fs = require('fs');
 const path = require('path');
 router.post('/listPost', async (req, res) => {
-
     try {
         const list = [];
-        const posts = await Post.find().sort({ createdAt: 'desc' });
+        const posts = await Post.find({ status: true }).sort({ createdAt: 'desc' });
         const currentUser = await User.findById(req.body.userId);
         console.log(req.body.userId);
 
@@ -23,8 +22,12 @@ router.post('/listPost', async (req, res) => {
 
             const user = await User.findById(userId);
 
-            if (!user) {
-                continue;
+            if (!user || !user.status || !postData.status) {
+                continue; // Skip if user status or post status is false
+            }
+
+            if (user.status == false) {
+                continue; // Skip if user status is false
             }
 
             const userName = `${user.fname} ${user.lname}`;
@@ -56,6 +59,7 @@ router.post('/posts', async (req, res) => {
     console.log("post");
     try {
         const { userId, post, postImg } = req.body;
+        console.log(req.body);
         let newPost;
         if (postImg == "") {
             newPost = new Post({
@@ -281,7 +285,7 @@ router.post('/userPosts', async (req, res) => {
     try {
         const loggedInUserId = req.body.loggedInUserId;
         const list = [];
-        const posts = await Post.find({ userId: req.body.userId }).sort({ createdAt: 'desc' });
+        const posts = await Post.find({ userId: req.body.userId, status: true }).sort({ createdAt: 'desc' });
 
         for (const postData of posts) {
             const {

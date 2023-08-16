@@ -39,7 +39,11 @@ router.post("/login", async (req, res) => {
     try {
         const user = await User.findOne({ email: req.body.email });
         !user && res.status(404).json({ error: "User not found" });
-
+        
+        if (!user.status) {
+            return res.status(403).json({ error: "Account is inactive" });
+        }
+      
         const validPassword = await bcrypt.compareSync(req.body.password, user.password);
         if (!validPassword) {
             return res.status(400).json({ error: "Wrong password" });

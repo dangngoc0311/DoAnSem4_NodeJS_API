@@ -8,7 +8,6 @@ router.post('/listPost', async (req, res) => {
         const list = [];
         const posts = await Post.find({ status: true }).sort({ createdAt: 'desc' });
         const currentUser = await User.findById(req.body.userId);
-        console.log(req.body.userId);
 
         for (const postData of posts) {
             const {
@@ -31,7 +30,10 @@ router.post('/listPost', async (req, res) => {
             }
 
             const userName = `${user.fname} ${user.lname}`;
-            const liked = postData.likes.includes(currentUser._id); // Check if currentUser._id is in the likes array
+            const liked = postData.likes.includes(currentUser._id);
+
+            // Lấy thông tin comment cuối cùng của bài viết
+            const lastComment = comments.length > 0 ? comments[comments.length - 1] : null;
 
             list.push({
                 id: postData._id,
@@ -44,16 +46,17 @@ router.post('/listPost', async (req, res) => {
                 liked: liked,
                 likes,
                 comments,
+                lastComment, 
             });
         }
-
+console.log(list);
         res.status(200).json(list);
     } catch (error) {
         console.error('Error fetching posts:', error);
         res.status(500).json({ error: 'Failed to fetch posts' });
     }
-
 });
+
 
 router.post('/posts', async (req, res) => {
     console.log("post");
